@@ -147,9 +147,12 @@ exports.studentUpdateProfile = async (req, res) => {
               : userProfile.parentMobileNumber,
           },
           (err, data) => {
-            // console.log();
             if (err) {
-              console.log(err);
+              res.status(400).send({
+                success:false,
+                message:"Data Cannot Update",
+                data:null
+              })
             } else {
               res.status(200).send({
                 success: true,
@@ -162,7 +165,11 @@ exports.studentUpdateProfile = async (req, res) => {
       }
     }
   } catch (err) {
-    console.log(err);
+    res.status(400).send({
+      success:false,
+      message:"Data Cannot Update",
+      data:null
+    })
   }
 };
 exports.changePassword = async (req, res) => {
