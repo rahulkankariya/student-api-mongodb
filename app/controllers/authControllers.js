@@ -14,8 +14,8 @@ exports.login = async (req, res) => {
       data: null,
     });
   } else {
-    const {  password } = req.body;
-   let email =req.body.email.toLowerCase()
+    const { password } = req.body;
+    let email = req.body.email.toLowerCase();
     const userlogin = await user.findOne({ email: email });
     if (!userlogin) {
       res.status(400).send({
@@ -29,7 +29,7 @@ exports.login = async (req, res) => {
         res.status(400).send({
           success: false,
           message: "The email or password your entered is incorrect",
-          data:null
+          data: null,
         });
       } else {
         if (userlogin.status === "Active") {
@@ -56,6 +56,7 @@ exports.login = async (req, res) => {
           res.status(400).send({
             success: false,
             message: "Account is Locked",
+            data: null,
           });
         }
       }
@@ -63,15 +64,22 @@ exports.login = async (req, res) => {
   }
 };
 exports.forgotPassword = async (req, res) => {
-  
   try {
+    const { error } = forgotPassword(req.body);
+    if (error) {
+      return res.status(400).send({
+        success: false,
+        message: error.details[0].message,
+        data: null,
+      });
+    }
     const { email } = req.body;
     const userlogin = await user.findOne({ email: email });
-    //   console.log(userlogin)
     if (!userlogin) {
       res.status(400).send({
         success: false,
         message: "Email does Not Exist",
+        data: null,
       });
     } else {
       if (userlogin.status == "Active") {
@@ -83,24 +91,14 @@ exports.forgotPassword = async (req, res) => {
           { otp: randomNumber },
           (err, data) => {
             if (err) {
-              console.log(err);
-            } else {
-              // console.log("otp send",data);
+              res.status(400).send({
+                success: false,
+                message: "Otp Cannot Generate",
+                data: null,
+              });
             }
           }
         );
-        const accessToken = jwt.sign(
-          { id: userlogin._id },
-          process.env.ACCESS_KEY,
-          { expiresIn: process.env.JWT_ACCESS_SECRET_KEY_TIME }
-        );
-        const refreshToken = jwt.sign(
-          { id: userlogin._id },
-          process.env.SECRET_KEY,
-          { expiresIn: process.env.JWT_REFRESH_SECRET_KEY_TIME }
-        );
-
-      
         //email otp
         let transport = nodemailer.createTransport({
           host: "smtp.gmail.com",
@@ -120,9 +118,11 @@ exports.forgotPassword = async (req, res) => {
         };
         transport.sendMail(mailoption, (error, info) => {
           if (error) {
-            console.log(error);
-          } else {
-            // console.log("Email can  Send done ", info.response);
+            res.status(400).send({
+              success: false,
+              message: "Eamil id Cannot be Found",
+              data: err,
+            });
           }
         });
         res.status(200).send({
@@ -130,21 +130,49 @@ exports.forgotPassword = async (req, res) => {
           message:
             "We have send one time password to your registered email address",
           data: {
-            // userId: userlogin.id,
-            access_token: accessToken,
-            refresh_token: refreshToken,
+            userId: userlogin.id,
           },
         });
       } else {
         res.status(400).send({
           success: false,
           message: "Accout is Locked",
+          data: null,
         });
       }
     }
   } catch (err) {
-    res.send(err);
-    console.log(err);
+    res.status(400).send({
+      success: false,
+      message: "Otp not Generated",
+      data: err,
+    });
+  }
+};
+exports.validateOtp = async (req, res) => {
+  const { Otp, id } = req.body;
+  const { error } = validOtp(req.body);
+  if (error) {
+    return res.status(400).send({
+      success: false,
+      message: error.details[0].message,
+      data: null,
+    });
+  }
+  
+  const userValidOtp = await user.findOne({ _id: id, otp: Otp });
+  if (!userValidOtp) {
+    res.status(400).send({
+      success: false,
+      message: "Invalid OTP Enterd",
+      data: null,
+    });
+  } else {
+    res.status(200).send({
+      success: true,
+      message: "Otp is Correct",
+      data: userValidOtp._id,
+    });
   }
 };
 exports.resetPassword = async (req, res) => {
@@ -153,21 +181,20 @@ exports.resetPassword = async (req, res) => {
     return res.status(400).send({
       success: false,
       message: error.details[0].message,
+      data: null,
     });
   } else {
-    const { otp } = req.body;
-    const id = req.currentUser.id;
+    const id = req.body.id;
     const password = await bcrypt.hash(
       req.body.password,
       await bcrypt.genSalt()
     );
-    const userresetPassword = await user.findOne({ _id: id, otp: otp });
+    const userresetPassword = await user.findOne({ _id: id });
     if (!userresetPassword) {
- 
       res.status(400).send({
         success: false,
         message: "Invalid OTP Enterd",
-        data: null
+        data: null,
       });
     } else {
       user.updateOne(
@@ -175,12 +202,16 @@ exports.resetPassword = async (req, res) => {
         { password: password },
         (err, data) => {
           if (err) {
-            console.log(err);
+            res.status(200).send({
+              success: false,
+              message: "PassWord Cannot Changed",
+              data: err,
+            });
           } else {
             res.status(200).send({
               success: true,
               message: "Password Can Changed Successfully",
-              data:null
+              data: null,
             });
           }
         }
@@ -190,7 +221,6 @@ exports.resetPassword = async (req, res) => {
 };
 exports.refreshToken = async (req, res) => {
   const { refreshtoken } = req.body;
-
   try {
     if (!refreshtoken) {
       res.status(200).send({
@@ -199,9 +229,9 @@ exports.refreshToken = async (req, res) => {
         data: null,
       });
     } else {
-      const decoded  = jwt.verify(refreshtoken,process.env.SECRET_KEY);
-      
-      const {id} = decoded
+      const decoded = jwt.verify(refreshtoken, process.env.SECRET_KEY);
+
+      const { id } = decoded;
       const accessToken = jwt.sign({ id: id }, process.env.ACCESS_KEY, {
         expiresIn: process.env.JWT_ACCESS_SECRET_KEY_TIME,
       });
@@ -223,34 +253,65 @@ exports.refreshToken = async (req, res) => {
       message: "Session is Expired",
       data: err,
     });
-    
   }
 };
 
 //validation on joi packages used
-function login(validData) {
+function login(validData) {     
   const schema = {
-    email: Joi.string().email().required().error(()=>{
-      return{
-        message:"Please Enter a Email"
-      }
-    }).email({ tlds: { allow: false } }).error(()=>{
-      return{
-        message:"Please Enter a Valid Email Address"
-      }
-    }),
-    password: Joi.string().required().error(()=>{
-      return{
-        message:"Please Enter a Password"
-      }
-    }),
+    email: Joi.string()
+      .email()
+      .required()
+      .error(() => {
+        return {
+          message: "Please Enter a Email",
+        };
+      })
+      .email({ tlds: { allow: false } })
+      .error(() => {
+        return {
+          message: "Please Enter a Valid Email Address",
+        };
+      }),
+    password: Joi.string()
+      .required()
+      .error(() => {
+        return {
+          message: "Please Enter a Password",
+        };
+      }),
+  };
+  return Joi.validate(validData, schema);
+}
+function forgotPassword(validData) {
+  const schema = {
+    email: Joi.string()
+
+      .required()
+      .error(() => {
+        return {
+          message: "Please Enter a Email",
+        };
+      })
+      .email({ tlds: { allow: false } })
+      .error(() => {
+        return {
+          message: "Please Enter a Valid Email Address",
+        };
+      }),
   };
   return Joi.validate(validData, schema);
 }
 function resetPassword(validData) {
   const schema = {
-    // id: Joi.string().required(),
-    otp: Joi.string().required(),
+    id: Joi.string()
+      .required()
+      .required()
+      .error(() => {
+        return {
+          message: "Please Enter a  ID",
+        };
+      }),
     password: Joi.string()
       .required()
       .regex(
@@ -265,5 +326,20 @@ function resetPassword(validData) {
   };
   return Joi.validate(validData, schema);
 }
-
-
+function validOtp(validData) {
+  const schema = {
+    id: Joi.string()
+      .required()
+      .error(() => {
+        return {
+          message: "Please Enter a  ID",
+        };
+      }),
+    Otp: Joi.string().required()  .error(() => {
+      return {
+        message: "Please Enter a Valid OTP",
+      };
+    })
+  };
+  return Joi.validate(validData, schema);
+}

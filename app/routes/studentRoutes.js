@@ -8,9 +8,10 @@ module.exports = app =>{
     router.post('/register',studentConfig.register);
     router.post('/login',authConfig.login);
     router.post('/forgot-password',authConfig.forgotPassword);
-    router.post('/reset-password',middleware.refreshToken,authConfig.resetPassword)
+    router.post('/validate-otp',authConfig.validateOtp)
+    router.post('/reset-password',authConfig.resetPassword)
     router.patch('/update-profile',middleware.refreshToken,studentConfig.studentUpdateProfile);
-    router.patch('/change-password',studentConfig.changePassword);
+    router.patch('/change-password',middleware.refreshToken,studentConfig.changePassword);
     router.post('/refresh-token',authConfig.refreshToken);
     app.use('/',router);
 };
